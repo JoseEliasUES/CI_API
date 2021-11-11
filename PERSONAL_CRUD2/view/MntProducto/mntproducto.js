@@ -2,7 +2,7 @@ var tabla;
 
 function init(){
     $("#producto_form").on("submit",function(e){
-        guardaryeditar(e);	
+        guardaryedasacveitar(e);	
     });
 }
 

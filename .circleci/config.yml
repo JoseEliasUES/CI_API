@@ -5,22 +5,37 @@ version: 2.1
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
-    docker:
-      - image: cimg/base:stable
-    # Add steps to the job
-    # See: https://circleci.com/docs/2.0/configuration-reference/#steps
+  build:
+    machine: true
     steps:
       - checkout
-      - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
 
-# Invoke jobs via workflows
-# See: https://circleci.com/docs/2.0/configuration-reference/#workflows
-workflows:
-  say-hello-workflow:
-    jobs:
-      - say-hello
+      - restore_cache:
+          keys:
+            - composer-v1-{{ checksum "composer.lock" }}
+            - composer-v1-
+
+      - run:
+          name: Copy .env.dist to .env file
+          command: |
+            cp .env.dist .env
+      - run:
+          name: Build images and restar the php image
+          command: |
+            ./dockerbuild.sh
+            docker-compose up -d
+            docker-compose restart fpm
+      - save_cache:
+          key: composer-v1-{{ checksum "composer.lock" }}
+          paths:
+            - vendor
+
+      - run:
+          name: Check coding standard
+          command: docker-compose exec fpm bin/phpcs --extensions=php src --standard=PSR2 -n --ignore=src/Migrations
+      - run:
+          name: Run phpunit tests
+          command: docker-compose exec fpm bin/simple-phpunit tests/
+      - run:
+          name: Run Behat tests
+          command: docker-compose exec fpm env DATABASE_URL=sqlite:////var/cache/db.sqlite bin/behat
